@@ -70,7 +70,7 @@ if __name__ == "__main__":
     import argparse
     description = "http/https proxy, -p prot default 11112 "
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument("-p", help="prot num", default=11112)
+    parser.add_argument("-p", help="prot num", default=11113)
     args = parser.parse_args()
     PORT = int(args.p)
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

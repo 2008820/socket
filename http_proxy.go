@@ -1,31 +1,41 @@
 package main
 
 import (
+	l "github.com/Sirupsen/logrus"
 	"net"
 	"fmt"
 	"strings"
 	"net/url"
 	"bytes"
 	"io"
+	"os"
+	"time"
 )
 
-func handleConnect (client net.Conn) {
+const (
+	serverIp = "0.0.0.0:11113"
+)
+
+func handleConnect(client net.Conn) {
 
 	defer client.Close()
-
-	var b [1024*10]byte
+	err := client.SetDeadline(time.Now().Add(time.Duration(120) * time.Second))
+	if err!=nil{
+		l.Error(err)
+	}
+	var b [1024 * 10]byte
 	n, err := client.Read(b[:])
 	if err != nil {
 		return
 	}
 	var methon, host, addr string
-	fmt.Println(string(b[:n]))
+	var fristOne, body string
 	getData := string(b[:bytes.IndexByte(b[:], '\n')])
-	fmt.Println(getData)
 	fmt.Sscanf(getData, "%s %s", &methon, &host)
-	fmt.Println(methon, host)
+	fmt.Sscanf(getData, "%s\r\n%s", &fristOne, &body)
+	//fmt.Println(host)
+	l.Info(host)
 	u, err := url.Parse(host)
-	fmt.Println(u)
 	if err != nil {
 		return
 	}
@@ -45,30 +55,48 @@ func handleConnect (client net.Conn) {
 	}
 	//连接远程服务器
 	s, err := net.Dial("tcp", addr)
-	fmt.Println("链接远程服务器")
 	if err != nil {
 		return
 	}
+	errs := s.SetDeadline(time.Now().Add(time.Duration(120) * time.Second))
+	if errs != nil {
+		l.Error(errs)
+	}
+	defer s.Close()
+
+
 	if methon == "CONNECT" {
 		client.Write([]byte("HTTP/1.1 200 Connection established\r\nConnection: close\r\n\r\n"))
 	} else {
-		fmt.Println(string(b[:n]))
+		//fmt.Println(string(b[:n]))
 		s.Write(b[:n])
 	}
-	fmt.Println("写入数据")
-	go io.Copy(s, client)
+
+	go func() {
+		defer s.Close()
+		defer client.Close()
+		io.Copy(s, client)
+	}()
+
 	io.Copy(client, s)
+	l.Info("传输完成")
 
 
 
 }
 
 func main() {
-	s, err := net.Listen("tcp", "0.0.0.0:11113")
-
+	s, err := net.Listen("tcp", serverIp)
+	pathStr := "proxy_log"
+	dir ,_ := os.Getwd()
+	fmt.Println(dir)
+	_ = os.MkdirAll(pathStr, 0755)
+	pathStr = fmt.Sprintf("%s/%s/proxy", dir, pathStr)
+	fmt.Println(pathStr)
 	if err != nil {
 		fmt.Println(err)
 	}
+
 	defer s.Close()
 	for {
 		conn, err := s.Accept()
